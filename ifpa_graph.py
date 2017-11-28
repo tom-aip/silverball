@@ -5,10 +5,35 @@ import os
 import re
 import time
 import datetime
+from typing import NamedTuple
 
 from matplotlib import pyplot as plt
 from matplotlib.dates import date2num
+
+class Player:
+    def __init__(self, id, name):
+        self.id = id
+        self.name = name
+        self.tournaments_list = []
+        self.dates_list = []
+        self.ratings_list = []
+        self.rankings_list = []
         
+    def addRatingRanking(self, date, rating, ranking):
+        self.dates_list.append(date)
+        self.ratings_list.append(rating)
+        self.rankings_list.append(ranking)
+    def getRatings(self):
+        return self.ratings_list
+    def getRankings(self):
+        return self.rankings_list
+    def getDates(self):
+        return self.dates_list
+    def setName(self,name):
+        self.name = name
+    def getName(self):
+        return self.name
+
 # returns list of tournament that the player has played in.
 def get_tournaments(player_id):
 
@@ -29,6 +54,7 @@ def get_tournaments(player_id):
     # find tournaments with text like this:
     # /tournaments/view.php?t=21201
     tournaments = re.findall('/tournaments/view.php\?t=(\d+)', player_html)
+    
     return (tournaments)
 
 def get_current_rating_ranking(player_id):
@@ -74,16 +100,20 @@ def get_rankings(player_id, tournaments):
     # get the tournament data if don't have it already
     print('getting tournament for ' + str(player_id) + " from " + str(len(tournaments)) + " tournaments.")
 
-    dates_list = []
-    ratings_list = []
-    rankings_list = []
+#    dates_list = []
+#    ratings_list = []
+#    rankings_list = []
+    player = Player(id,tournaments)
 
     # get current rating/ranking
         # open player file
     (player_name, rating, ranking, date) = get_current_rating_ranking(player_id)
-    dates_list.append(date)
-    ratings_list.append(rating)
-    rankings_list.append(ranking)
+    player.addRatingRanking(date, rating, ranking)
+    player.setName(player_name)
+    
+#    dates_list.append(date)
+#    ratings_list.append(rating)
+#    rankings_list.append(ranking)
         
     for tournament_id in tournaments:
         tournament_filename = 'tournaments/' + tournament_id + '.txt'
@@ -120,22 +150,20 @@ def get_rankings(player_id, tournaments):
         
         m = re.search(match_str, tournament_html, re.DOTALL)
         
-        rank = 0
+        ranking = 0
         rating = 0
         
         # skip tournament if there's no match
         if m:
             player_name = m.group(1)
-            rank = int(m.group(2))
+            ranking = int(m.group(2))
             rating = m.group(3)
             print (rating)
 
             # skip unrated tournaments. not really useful and throw off the Y axis.
             if rating != 'Not Rated' and int(rating) >200:
-                print ('rating is ' + rating)
+#                print ('rating is ' + rating)
                 rating = int(rating)
-                ratings_list.append(rating)
-                rankings_list.append(rank)
 
                 # find the date string. example:
                 # <p id="toursubtitle">Results for the Main Tournament event on October 31, 2017</p>
@@ -145,28 +173,31 @@ def get_rankings(player_id, tournaments):
                     date_str = m.group(1)
                     time_object = datetime.datetime.strptime(date_str, '%B %d, %Y')
                     plt_time_object = date2num(time_object)
-                    print('tournament ' + str(tournament_id) + ' on ' + date_str + ', rank ' + str(rank) + ' rating ' + str(rating))
+                    print('tournament ' + str(tournament_id) + ' on ' + date_str + ', rank ' + str(ranking) + ' rating ' + str(rating))
 
                 else:
                     print("*** no date found for tournament " + tournament_id)            
 
+#                dates_list.append(plt_time_object)
+                player.addRatingRanking(plt_time_object, rating, ranking)
 
-        #        xaxis_time = time.strftime('%Y.%m%d',time_object)
-        #        xaxis_time = float(xaxis_time)
-                dates_list.append(plt_time_object)
             else:
                 print("skipping unrated tournament " + tournament_id)            
-    return (player_name, dates_list, ratings_list, rankings_list)
+#    return (player_name, dates_list, ratings_list, rankings_list)
+    return player
+
+def graph_player(player):
+    dates_list = player.getDates()
+    rankings_list = player.getRankings()
+    ratings_list= player.getRatings()
+    player_name = player.getName()
     
-
-def graph_player(player_name, dates_list, rankings_list, ratings_list):
-
     # sort the ratings and rankings based on the date.     
     rankings_list_sorted = [x for _,x in sorted(zip(dates_list,rankings_list))]
     ratings_list_sorted = [x for _,x in sorted(zip(dates_list,ratings_list))]
     dates_list_sorted = sorted(dates_list)
 
-    # add data points to the graph
+    # set up the graph
     fig = plt.figure(figsize=(8, 5))
 #    plt.plot(dates_list, rankings_list,'ro')
     ax = fig.add_subplot(111) #1x1 grid, 1st subplt
@@ -192,37 +223,45 @@ def graph_player(player_name, dates_list, rankings_list, ratings_list):
     plt.show()
     plt.close()
 
-    
-def graph_two_players(player_name, dates_list, rankings_list, ratings_list, player_name2, dates_list2, rankings_list2, ratings_list2):
+def graph_players(players):
 
-    # sort the ratings and rankings based on the date.     
-    rankings_list_sorted = [x for _,x in sorted(zip(dates_list,rankings_list))]
-    ratings_list_sorted = [x for _,x in sorted(zip(dates_list,ratings_list))]
-    dates_list_sorted = sorted(dates_list)
-
-    # sort the ratings and rankings based on the date.     
-    rankings_list_sorted2 = [x for _,x in sorted(zip(dates_list2,rankings_list2))]
-    ratings_list_sorted2 = [x for _,x in sorted(zip(dates_list2,ratings_list2))]
-    dates_list_sorted2 = sorted(dates_list2)
-
-    # add data points to the graph
+    # set up the graph
     fig = plt.figure(figsize=(8, 5))
+#    plt.plot(dates_list, rankings_list,'ro')
     ax = fig.add_subplot(111) #1x1 grid, 1st subplt
-
-    ax.plot_date(dates_list_sorted, ratings_list_sorted, '-r')
+#    ax.plot_date(dates_list, rankings_list, 'ro')
+    title_str = 'IFPA rating comparison for '
     ax.set_ylabel('rating')
-    ax.plot_date(dates_list_sorted2, ratings_list_sorted2,'-b')
+    plot_colors = ('-r', '-b', '-y', '-')
+    player_num = 0
+    for player in players:
+        player_num = player_num + 1
+        print('player ' + player.getName())
+        dates_list = player.getDates()
+        rankings_list = player.getRankings()
+        ratings_list= player.getRatings()
+        player_name = player.getName()
     
-    plt.title('IFPA rating comparison for ' + player_name + ' ' + str(player_id) + ' and ' + player_name2 + ' ' + str(player2_id))
+            # sort the ratings and rankings based on the date.     
+        rankings_list_sorted = [x for _,x in sorted(zip(dates_list,rankings_list))]
+        ratings_list_sorted = [x for _,x in sorted(zip(dates_list,ratings_list))]
+        dates_list_sorted = sorted(dates_list)
+
+        ax.plot_date(dates_list_sorted, ratings_list_sorted, plot_colors[player_num-1])
+#        ax.plot_date(dates_list_sorted2, ratings_list_sorted2,'-b')
+
+        title_str = title_str + ' ' + player.getName()
 
     plt.xlabel('date')
-    
+    plt.title(title_str)
+
     # don't save to PNG if this is a comparison. not sure it makes sense.
     #    png_name = 'graphs/' + player_name.strip() + '_' + str(player_id) + '_'.png'
     #    plt.savefig(png_name, dpi=200)
 
     plt.show()
     plt.close()    
+  
         
 if __name__ == '__main__':
     
@@ -234,26 +273,32 @@ if __name__ == '__main__':
     if not os.path.exists('graphs'):
         os.makedirs('graphs')
 
-    # get command line arguments
-    try:
-        player_id = int(sys.argv[1])
-    except:
-        print("Enter one IFPA player_id for rating & ranking graph, or two for a rating comparison.")
-        sys.exit()
-    try:
-        player2_id = int(sys.argv[2])
-    except:
-        player2_id = 0
+    players = []
+    player_num = 0
+    player_id = 0
+    
+    # try to get four player IDs from the argv list
+    while player_num < 4:
+        player_num = player_num +1
+        try:
+            player_id = int(sys.argv[player_num])
+        except:
+            player_id = 0
+            if player_num == 1:
+                print("Enter one IFPA player_id for rating & ranking graph, or two to four for a rating comparison.")
+            sys.exit()
 
-    # get list of tournaments the player has played in.
-    tournaments = get_tournaments(player_id)
-    (player_name, dates_list, ratings_list, rankings_list) = get_rankings(player_id, tournaments)
+        # get player info
+        if (player_id > 0):
+            # get list of tournaments the player has played in.
+            tournaments = get_tournaments(player_id)
+            # get the rankings from that tournaments
+            player = get_rankings(player_id, tournaments)
+            players.append(player)
 
-    # if a second player comparison was requested, get their data, too
-    if (player2_id > 0):
-        tournaments2 = get_tournaments(player2_id)
-        (player_name2, dates_list2, ratings_list2, rankings_list2) = get_rankings(player2_id, tournaments2)
-        graph_two_players(player_name, dates_list, rankings_list, ratings_list,player_name2, dates_list2, rankings_list2, ratings_list2)
+    # if only one player was entered, graph a single player's rank & rating, else make a comparison graph
+    if player_num == 1:
+        graph_player(player)
     else:
-        graph_player(player_name, dates_list, rankings_list, ratings_list)
+        graph_players(players)
 
